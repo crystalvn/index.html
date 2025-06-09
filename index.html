@@ -27,32 +27,111 @@
     const FORM_ID = "240609303895460";          
 
     // ***** RẤT QUAN TRỌNG: THAY CÁC ID DƯỚI ĐÂY BẰNG ID THỰC TẾ TRÊN JOTFORM CỦA BẠN *****
-    // Để tìm ID, bạn có thể:
-    // 1. Vào Form Builder trên JotForm, click vào trường câu hỏi, xem phần "Properties" (Thuộc tính) -> "Field Details" -> "Field ID".
-    // 2. Hoặc xem cấu trúc JSON của một submission mẫu từ API JotForm để tìm các ID tương ứng.
+    // CÁCH TÌM ID TRƯỜNG TRÊN JOTFORM:
+    // 1. Đăng nhập JotForm, vào Form Builder của biểu mẫu Kaizen.
+    // 2. Click vào từng trường câu hỏi (ví dụ: "Họ và tên", "Kaizen ID", "Approval", v.v.).
+    // 3. Ở khung bên phải, trong phần "Properties" (Thuộc tính) -> "Advanced" (Nâng cao) -> "Field Details" (Chi tiết trường).
+    // 4. Bạn sẽ thấy "Field ID". Hãy sao chép và thay thế vào các giá trị dưới đây.
+    // ----------------------------------------------------------------------------------
     const FIELD_IDS = {
-        EMPLOYEE_NAME: '8',  // Giả định ID của trường "Họ và tên/Name" là 8. BẠN PHẢI XÁC NHẬN!
-        KAIZEN_ID: '1',      // Giả định ID của trường "Kaizen ID" là 1. BẠN PHẢI XÁC NHẬN!
-        APPROVAL: '2',       // Giả định ID của trường "Approval" là 2. BẠN PHẢI XÁC NHẬN!
-        PROGRESS: '3',       // Giả định ID của trường "Progress" là 3. BẠN PHẢI XÁC NHẬN!
-        AWARD_1: '4',        // Giả định ID của trường "Award 1" là 4. BẠN PHẢI XÁC NHẬN!
-        AWARD_2: '5'         // Giả định ID của trường "Award 2" là 5. BẠN PHẢI XÁC NHẬN!
+        // ID của trường "Họ và tên / Name" - Đây là trường dùng để lọc mã nhân viên
+        EMPLOYEE_NAME: '8', // <-- HÃY XÁC NHẬN ID NÀY TỪ JOTFORM CỦA BẠN! Ví dụ: một trường có thể là 8, 14, 19, v.v.
+
+        // Các ID của các trường khác để hiển thị trong bảng
+        APPROVAL: '2',      // ID của trường "Approval"
+        KAIZEN_ID: '3',     // ID của trường "Kaizen ID"
+        PROGRESS: '4',      // ID của trường "Tiến độ thực hiện / Progress"
+        AWARD_1: '9',       // ID của trường "Award 1"
+        AWARD_2: '10'       // ID của trường "Award 2"
+        // submission date không cần ID vì nó là thuộc tính mặc định của submission (sub.created_at)
     };
     // ***********************************************************************************
 
     async function searchKaizen() {
       const empId = document.getElementById('employeeId').value.trim().toUpperCase();
-      if (!empId) return alert("Vui lòng nhập mã nhân viên");
+      if (!empId) {
+        alert("Vui lòng nhập mã nhân viên");
+        return;
+      }
 
       const resultDiv = document.getElementById('result');
       resultDiv.innerHTML = 'Đang tải dữ liệu...';
 
       try {
-        const response = await fetch(`https://api.jotform.com/form/<span class="math-inline">\{FORM\_ID\}/submissions?apikey\=</span>{API_KEY}`);
+        const response = await fetch(`https://api.jotform.com/form/${FORM_ID}/submissions?apikey=${API_KEY}`);
         const data = await response.json();
+        
+        if (data.responseCode !== 200) {
+            resultDiv.innerHTML = `⚠️ Lỗi khi truy xuất dữ liệu: ${data.message || 'Không xác định.'}`;
+            console.error("JotForm API Error:", data);
+            return;
+        }
+
         const submissions = data.content;
 
         // Lọc các submission có mã nhân viên phù hợp
-        // Bây giờ chúng ta nhắm thẳng vào FIELD_IDS.EMPLOYEE_NAME
         const filtered = submissions.filter(sub => {
-          const employeeNameValue = sub.answers[FIELD_IDS.EMPLOYEE
+          // Lấy giá trị từ trường "Họ và tên / Name" dựa vào ID thực tế của nó
+          const employeeNameValue = sub.answers[FIELD_IDS.EMPLOYEE_NAME]?.answer;
+          
+          // Kiểm tra nếu có giá trị và giá trị đó chứa mã nhân viên đã nhập
+          // (Ví dụ: "A03302 Nguyễn Văn Đồng" sẽ chứa "A03302")
+          return employeeNameValue && employeeNameValue.toString().toUpperCase().includes(empId);
+        });
+
+        if (filtered.length === 0) {
+          resultDiv.innerHTML = `<p>❌ Không tìm thấy ý tưởng nào cho mã: <b>${empId}</b></p>`;
+          return;
+        }
+
+        // Tạo bảng kết quả
+        let html = `<p>✅ Tìm thấy ${filtered.length} ý tưởng cho mã <b>${empId}</b></p>`;
+        html += `<table>
+                  <tr>
+                    <th>Kaizen ID</th>
+                    <th>Submission Date</th>
+                    <th>Approval</th>
+                    <th>Progress</th>
+                    <th>Award 1</th>
+                    <th>Thưởng 1 (VND)</th>
+                    <th>Award 2</th>
+                    <th>Thưởng 2 (VND)</th>
+                  </tr>`;
+
+        filtered.forEach(sub => {
+          const a = sub.answers; // Đối tượng chứa tất cả các câu trả lời của submission này
+
+          // Lấy giá trị của từng trường dựa vào ID đã định nghĩa trong FIELD_IDS
+          const kaizenId = a[FIELD_IDS.KAIZEN_ID]?.answer || '';
+          const approval = a[FIELD_IDS.APPROVAL]?.answer || '';
+          const progress = a[FIELD_IDS.PROGRESS]?.answer || '';
+          const award1 = a[FIELD_IDS.AWARD_1]?.answer || '';
+          const award2 = a[FIELD_IDS.AWARD_2]?.answer || '';
+          
+          // sub.created_at là ngày tạo submission, không cần Field ID
+          const submissionDate = sub.created_at?.split(" ")[0] || ''; 
+
+          html += `<tr>
+                    <td>${kaizenId}</td>
+                    <td>${submissionDate}</td>
+                    <td>${approval}</td>
+                    <td>${progress}</td>
+                    <td>${award1}</td>
+                    <td class="money">${award1 ? "20,000VND" : ""}</td>
+                    <td>${award2}</td>
+                    <td class="money">${award2 ? "50,000VND" : ""}</td>
+                   </tr>`;
+        });
+
+        html += '</table>';
+        resultDiv.innerHTML = html;
+
+      } catch (error) {
+        console.error("Lỗi mạng hoặc phân tích dữ liệu:", error);
+        resultDiv.innerHTML = '⚠️ Lỗi khi truy xuất dữ liệu. Vui lòng kiểm tra kết nối mạng hoặc API Key/Form ID.';
+      }
+    }
+  </script>
+
+</body>
+</html>
