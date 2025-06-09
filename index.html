@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Tra cứu Kaizen</title>
+  <style>
+    body { font-family: Arial; padding: 20px; max-width: 800px; margin: auto; }
+    input, button { padding: 10px; font-size: 16px; margin-right: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .money { color: green; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h2>🔍 Tra cứu ý tưởng Kaizen theo mã nhân viên</h2>
+  <input type="text" id="employeeId" placeholder="Nhập mã nhân viên (ví dụ A03302)">
+  <button onclick="searchKaizen()">Tra cứu</button>
+
+  <div id="result"></div>
+
+  <script>
+    const API_KEY = 32d2ba434ed7f1d8eae3017a1caa34ef;  // 🔐 Thay bằng API Key thật
+    const FORM_ID = 240609303895460;          // 📝 Thay bằng Form ID của bạn
+
+    async function searchKaizen() {
+      const empId = document.getElementById('employeeId').value.trim().toUpperCase();
+      if (!empId) return alert("Vui lòng nhập mã nhân viên");
+
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = 'Đang tải dữ liệu...';
+
+      try {
+        const response = await fetch(`https://api.jotform.com/form/${FORM_ID}/submissions?apikey=${API_KEY}`);
+        const data = await response.json();
+        const submissions = data.content;
+
+        // Lọc các submission có mã nhân viên phù hợp
+        const filtered = submissions.filter(sub => {
+          const answers = sub.answers;
+          for (let key in answers) {
+            if (answers[key].answer && answers[key].answer.toString().toUpperCase().includes(empId)) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (filtered.length === 0) {
+          resultDiv.innerHTML = `<p>❌ Không tìm thấy ý tưởng nào cho mã: <b>${empId}</b></p>`;
+          return;
+        }
+
+        // Tạo bảng kết quả
+        let html = `<p>✅ Tìm thấy ${filtered.length} ý tưởng cho mã <b>${empId}</b></p>`;
+        html += `<table>
+                  <tr>
+                    <th>Kaizen ID</th>
+                    <th>Submission Date</th>
+                    <th>Approval</th>
+                    <th>Progress</th>
+                    <th>Award 1</th><th></th>
+                    <th>Award 2</th><th></th>
+                  </tr>`;
+
+        filtered.forEach(sub => {
+          const a = sub.answers;
+          const get = (label) => {
+            for (let k in a) {
+              if (a[k].text && a[k].text.includes(label)) return a[k].answer || '';
+            }
+            return '';
+          };
+
+          const award1 = get("Award 1");
+          const award2 = get("Award 2");
+
+          html += `<tr>
+                    <td>${get("Kaizen ID")}</td>
+                    <td>${sub.created_at?.split(" ")[0]}</td>
+                    <td>${get("Approval")}</td>
+                    <td>${get("Progress")}</td>
+                    <td>${award1}</td>
+                    <td class="money">${award1 ? "20,000VND" : ""}</td>
+                    <td>${award2}</td>
+                    <td class="money">${award2 ? "50,000VND" : ""}</td>
+                   </tr>`;
+        });
+
+        html += '</table>';
+        resultDiv.innerHTML = html;
+
+      } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = '⚠️ Lỗi khi truy xuất dữ liệu.';
+      }
+    }
+  </script>
+
+</body>
+</html>
